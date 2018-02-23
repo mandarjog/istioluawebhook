@@ -4,6 +4,7 @@ from flask import jsonify
 import threading
 import os
 import time
+import argparse
 
 app = Flask(__name__)
 
@@ -14,11 +15,13 @@ app = Flask(__name__)
 def lds(cluster, node):
     print cluster
     print node
-    op = insert_lua(request.json)
+    op = insert_lua(request.get_json())
     return jsonify(op)
 
 # example
 # /clusters/istio-proxy/sidecar~10.32.1.20~httpbin-57db476f4d-svs9h.default~default.svc.cluster.local
+
+
 @app.route('/clusters/<cluster>/<node>', methods=['POST'])
 def cds(cluster, node):
     output = request.data
@@ -26,6 +29,8 @@ def cds(cluster, node):
 
 # example
 # /routes/15003/istio-proxy/sidecar~10.32.1.20~httpbin-57db476f4d-svs9h.default~default.svc.cluster.local
+
+
 @app.route('/routes/<name>/<cluster>/<node>', methods=['POST'])
 def rds(name, cluster, node):
     output = request.data
@@ -33,6 +38,7 @@ def rds(name, cluster, node):
 
 
 """
+# example listener configuration
 listeners:
 - address: tcp://0.0.0.0:80
   bind_to_port: true
@@ -50,8 +56,10 @@ listeners:
           inline_code: <code>
 
 """
+
 #
 # inserts lua as a filter in the http_connection_manager
+#
 
 
 def insert_lua(listeners):
@@ -65,11 +73,8 @@ def insert_lua(listeners):
 
     return listeners
 
-last_check = 0
 
-
-FILE_PATH = "scripts/webhook.lua"
-LUA_SCRIPT = """
+DEFAULT_LUA_SCRIPT = """
 -- Called on the request path.
 function envoy_on_request(request_handle)
   request_handle:headers():add("x-lua-header", "true")
@@ -79,16 +84,17 @@ end
 function envoy_on_response(response_handle)
   response_handle:headers():add("x-lua-resp-header", "false")
 end
-
 """
-LUA_CONFIG = {"name": "lua", "config": {"inline_code": LUA_SCRIPT}}
+LUA_CONFIG = {"name": "lua", "config": {"inline_code": DEFAULT_LUA_SCRIPT}}
 
 
 # polls for file chage
 class poller(object):
 
-    def __init__(self):
+    def __init__(self, filepath, cfg):
+        self.filepath = filepath
         self.done = False
+        self.cfg = cfg
 
     def cancel(self):
         self.done = True
@@ -97,20 +103,42 @@ class poller(object):
         modtime = 0
         while not self.done:
             time.sleep(10)
-            if not os.path.isfile(FILE_PATH):
+            if not os.path.isfile(self.filepath):
                 continue
 
-            new_modtime = os.path.getmtime(FILE_PATH)
+            new_modtime = os.path.getmtime(self.filepath)
             if new_modtime == modtime:
                 continue
 
             modtime = new_modtime
-            with open(FILE_PATH, "rt") as fl:
+            with open(self.filepath, "rt") as fl:
                 ls = fl.read()
-                LUA_CONFIG["config"]["inline_code"] = ls
+                print "File updated"
+                print ls
+                self.cfg["config"]["inline_code"] = ls
+
+
+def get_args_parser():
+    parser = argparse.ArgumentParser(
+        description="Run pilot webhook")
+
+    parser.add_argument("--script", help="path of the lua script to inject",
+                        default="scripts/plugin.lua")
+    parser.add_argument("--port", help="port to listen on",
+                        type=int, default=5000)
+    return parser
+
+
+def main(args):
+    p = poller(args.script, LUA_CONFIG)
+    threading.Thread(target=p).start()
+    ret = app.run(host="0.0.0.0", port=args.port)
+    p.cancel()
+    return ret
+
 
 if __name__ == "__main__":
-    p = poller()
-    threading.Thread(target=p).start()
-    app.run(host="0.0.0.0", port=5000)
-    p.cancel()
+    import sys
+    parser = get_args_parser()
+    args = parser.parse_args()
+    sys.exit(main(args))
