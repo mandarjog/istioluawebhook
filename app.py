@@ -104,6 +104,7 @@ class poller(object):
         while not self.done:
             time.sleep(10)
             if not os.path.isfile(self.filepath):
+                print self.filepath, "not found"
                 continue
 
             new_modtime = os.path.getmtime(self.filepath)

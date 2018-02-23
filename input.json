@@ -1,0 +1,19 @@
+{
+  "listeners": [
+    {
+      "filters": [
+        {
+          "name": "http_connection_manager",
+          "config": {
+            "filters": [
+              {
+                "name": "mixer",
+                "config": {}
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}
