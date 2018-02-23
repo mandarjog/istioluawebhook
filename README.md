@@ -31,6 +31,7 @@ access-control-allow-origin: *
 access-control-allow-credentials: true
 content-length: 0
 x-envoy-upstream-service-time: 6
-x-lua-resp-header: false
-x-lua-resp-header: false
+x-envoy-upstream-service-time: 6
+x-lua-resp-header: httpbin-57db476f4d-svs9h.default
+x-lua-resp-header: istio-ingress-784f979b9b-jpdzv.istio-system
 ```
