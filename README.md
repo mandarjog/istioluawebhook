@@ -16,3 +16,21 @@ Limitation
 
 At present the config is not refreshed automatically if you update the lua script.
 Pilot maintains a cache of the generated config which is recalculated only when there is a change in the environment.
+
+
+Example
+-------
+
+```
+macbookpro:src $ curl -I http://httpbin/status/207
+HTTP/1.1 207 Multi-Status
+server: envoy
+date: Fri, 23 Feb 2018 21:41:22 GMT
+content-type: text/html; charset=utf-8
+access-control-allow-origin: *
+access-control-allow-credentials: true
+content-length: 0
+x-envoy-upstream-service-time: 6
+x-lua-resp-header: false
+x-lua-resp-header: false
+```
