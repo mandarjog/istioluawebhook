@@ -15,3 +15,4 @@ Limitation
 ----------
 
 At present the config is not refreshed automatically if you update the lua script.
+Pilot maintains a cache of the generated config which is recalculated only when there is a change in the environment.
