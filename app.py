@@ -9,13 +9,20 @@ import argparse
 app = Flask(__name__)
 
 
+def getid(node):
+    ret = "unknown"
+    sl = node.split('~')
+    if len(sl) > 2:
+        ret = sl[2]
+    return ret
+
 # example
 # /listeners/istio-proxy/sidecar~10.32.1.20~httpbin-57db476f4d-svs9h.default~default.svc.cluster.local
+
+
 @app.route('/listeners/<cluster>/<node>', methods=['POST'])
 def lds(cluster, node):
-    print cluster
-    print node
-    op = insert_lua(request.get_json())
+    op = insert_lua(request.get_json(), getid(node))
     return jsonify(op)
 
 # example
@@ -62,16 +69,23 @@ listeners:
 #
 
 
-def insert_lua(listeners):
+def insert_lua(listeners, nodeid):
     for l in listeners.get("listeners", []):
         for f in l.get("filters", []):
             if f["name"] != "http_connection_manager":
                 continue
 
             ff = f["config"].get("filters", [])
-            ff.insert(0, LUA_CONFIG)
+            ff.insert(0, lua_config(nodeid))
 
     return listeners
+
+
+def lua_config(nodeid):
+    s = FILE_STORE[SCRIPT]
+    return {"name": "lua",
+            "config":
+            {"inline_code": s.format(nodeid=nodeid)}}
 
 
 DEFAULT_LUA_SCRIPT = """
@@ -82,10 +96,14 @@ end
 
 -- Called on the response path.
 function envoy_on_response(response_handle)
-  response_handle:headers():add("x-lua-resp-header", "false")
+  response_handle:headers():add("x-lua-resp-header", "{nodeid}")
 end
 """
-LUA_CONFIG = {"name": "lua", "config": {"inline_code": DEFAULT_LUA_SCRIPT}}
+
+SCRIPT = "SCRIPT"
+FILE_STORE = {
+    SCRIPT: DEFAULT_LUA_SCRIPT
+}
 
 
 # polls for file chage
@@ -102,21 +120,25 @@ class poller(object):
     def __call__(self):
         modtime = 0
         while not self.done:
-            time.sleep(10)
-            if not os.path.isfile(self.filepath):
-                print self.filepath, "not found"
-                continue
+            modtime = self.read_if_changed(modtime)
+            time.sleep(5)
 
-            new_modtime = os.path.getmtime(self.filepath)
-            if new_modtime == modtime:
-                continue
+    def read_if_changed(self, modtime):
+        if not os.path.isfile(self.filepath):
+            print self.filepath, "not found"
+            return modtime
 
-            modtime = new_modtime
-            with open(self.filepath, "rt") as fl:
-                ls = fl.read()
-                print "File updated"
-                print ls
-                self.cfg["config"]["inline_code"] = ls
+        new_modtime = os.path.getmtime(self.filepath)
+        if new_modtime == modtime:
+            return modtime
+
+        with open(self.filepath, "rt") as fl:
+            ls = fl.read()
+            print "File updated"
+            print ls
+            self.cfg[SCRIPT] = ls
+
+        return new_modtime
 
 
 def get_args_parser():
@@ -131,7 +153,7 @@ def get_args_parser():
 
 
 def main(args):
-    p = poller(args.script, LUA_CONFIG)
+    p = poller(args.script, FILE_STORE)
     threading.Thread(target=p).start()
     ret = app.run(host="0.0.0.0", port=args.port)
     p.cancel()

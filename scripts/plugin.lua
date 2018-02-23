@@ -5,5 +5,5 @@ end
 
 -- Called on the response path.
 function envoy_on_response(response_handle)
-  response_handle:headers():add("x-lua-resp-header", "false")
+  response_handle:headers():add("x-lua-resp-header", "{nodeid}")
 end
