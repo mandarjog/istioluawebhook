@@ -1,0 +1,13 @@
+1. ik g deployment istio-pilot -o yaml | grep webhook
+
+2. Enabled webhook and deployed luawebhook:5000 service
+3. kubectl --namespace istio-system get svc
+4. kubectl --namespace istio-system get cm luawebhook -o yaml
+5. expect response headers
+   curl -v http://httpbin/headers
+6. ik edit cm luawebhook
+   rename envoy_on_request_1 to envoy_on_request
+7. Wait for a little bit for webhook to reload
+8. kubectl --namespace istio-system delete pods $(kubectl --namespace istio-system get pods | egrep 'ingress|pilot' | awk '{print $1}')
+9. try status/201 should be same as before
+10. try http://httpbin/headers will encounter basic auth
