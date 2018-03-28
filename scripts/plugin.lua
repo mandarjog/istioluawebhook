@@ -4,7 +4,8 @@
 function envoy_on_request(request_handle)
   auth = request_handle:headers():get("authorization")
   request_handle:headers():add("x-lua-header", "true")
-  if auth == nil or auth == '' then
+  path = request_handle:headers():get(":path")
+  if (path == "/headers") and (auth == nil or auth == '') then
     request_handle:respond(
       {{[":status"] = "401", ["Content-Type"] = "text/plain", ["WWW-Authenticate"] = "Basic realm=luawebhook"}},
            "authenticate-{nodeid}\nAny username is ok")
